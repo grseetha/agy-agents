@@ -59,7 +59,7 @@ async def start_game():
 ## Testing Strategy
 * **Manual Testing**:
   * Run `python movie_guess_agent.py`.
-  * Select a language (e.g., English).
+  * Select a language (e.g., English, Tamil, Telugu, or Hindi).
   * Confirm that an image is downloaded in `generated_images/` and the path is printed.
   * Guess the movie correctly (should win).
   * Guess incorrectly three times (should lose and reveal the movie).
@@ -71,6 +71,7 @@ async def start_game():
   * Ask for the movie language before initiating the game.
   * Limit the guess count strictly to three attempts.
   * Clean up or organize generated files under `generated_images/`.
+  * Transliterate non-Latin script movie titles (such as Tamil and Telugu) to their standard English release titles before passing them to the tool.
 * **Ask first**:
   * Adding hints or multiplayer capabilities.
 * **Never**:

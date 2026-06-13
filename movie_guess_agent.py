@@ -5,6 +5,7 @@ import random
 import shlex
 import requests
 import urllib.parse
+import uuid
 from google.antigravity import Agent, LocalAgentConfig
 
 # --- Custom Tool ---
@@ -59,8 +60,7 @@ def fetch_movie_frame(movie_name: str) -> dict:
                         img_r = requests.get(chosen_url, headers=headers, timeout=15)
                         if img_r.status_code == 200:
                             ext = os.path.splitext(chosen_url.split('?')[0])[1] or '.jpg'
-                            clean_name = re.sub(r'[^a-zA-Z0-9]', '_', movie_name).lower()
-                            filename = f"fg_{clean_name}_{random.randint(1000, 9999)}{ext}"
+                            filename = f"frame_{uuid.uuid4().hex}{ext}"
                             local_path = os.path.join(output_dir, filename)
                             
                             with open(local_path, "wb") as f:
@@ -179,8 +179,7 @@ def fetch_movie_frame(movie_name: str) -> dict:
                     img_r = requests.get(wiki_img_url, headers=headers, timeout=15)
                     if img_r.status_code == 200:
                         ext = os.path.splitext(wiki_img_url.split('?')[0])[1] or '.jpg'
-                        clean_name = re.sub(r'[^a-zA-Z0-9]', '_', movie_name).lower()
-                        filename = f"wiki_{clean_name}_{random.randint(1000, 9999)}{ext}"
+                        filename = f"frame_{uuid.uuid4().hex}{ext}"
                         local_path = os.path.join(output_dir, filename)
                         
                         with open(local_path, "wb") as f:
@@ -204,9 +203,23 @@ def fetch_movie_frame(movie_name: str) -> dict:
         "error": f"Could not retrieve image for movie '{movie_name}' from Film-Grab or Wikipedia."
     }
 
+def cleanup_generated_images():
+    """Deletes all files in the generated_images directory to prevent leak and save disk space."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(base_dir, "generated_images")
+    if os.path.exists(output_dir):
+        for f in os.listdir(output_dir):
+            file_path = os.path.join(output_dir, f)
+            if os.path.isfile(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    print(f"[Warning] Failed to delete {file_path}: {e}")
+
 # --- Main Game Execution ---
 
 async def main():
+    cleanup_generated_images()
     base_dir = os.path.dirname(os.path.abspath(__file__))
     movie_guess_skill_dir = os.path.join(base_dir, "skills", "movie_guess")
     
@@ -218,13 +231,16 @@ async def main():
             "You have access to the 'movie_guess' skill and the 'fetch_movie_frame' tool.\n\n"
             "CRITICAL RULES:\n"
             "1. GREET the user and ask for their preferred movie language first.\n"
-            "2. Once they select a language, choose a highly recognizable, well-known movie in that language. "
+            "2. Once they select a language, choose a highly recognizable, well-known movie in that language. If the selected language uses a non-Latin script (like Tamil or Telugu), always choose the movie but pass its standard English transliteration or release title (e.g. 'Roja', 'Nayakan', or 'Baahubali' instead of local scripts) to the fetch_movie_frame tool to ensure lookup succeeds. "
             "DO NOT tell the user which movie you chose!\n"
             "3. IMMEDIATELY call the 'fetch_movie_frame' tool with the chosen movie name. "
             "Wait for the tool to return the result.\n"
             "4. When the tool returns success, notify the user that the scene frame has been downloaded "
-            "and opened on their machine. Print the exact local path to the image so they know where it is.\n"
-            "5. Prompt the user to guess the movie name. You must keep the chosen movie name strictly secret.\n"
+            "and opened on their machine. Print ONLY the exact local path to the image. DO NOT print the "
+            "source URL, website names (e.g. Film-Grab, Wikipedia), or any tool output metadata that could leak "
+            "the movie name.\n"
+            "5. Prompt the user to guess the movie name. You must keep the chosen movie name strictly secret. "
+            "Do not reveal the movie name or print any clue about it until the game is completed.\n"
             "6. Track the attempts. The user has a maximum of 3 attempts. If they guess incorrectly, "
             "inform them of the remaining attempts (e.g., 'Incorrect! You have 2 attempts remaining.') "
             "and ask for another guess.\n"
@@ -244,7 +260,7 @@ async def main():
     async with Agent(config) as agent:
         # Let the agent greet the user and start the game
         init_response = await agent.chat(
-            "Start the movie guessing game by greeting the user, introducing yourself as the Movie Guessing Game Master, and asking what language of movies they would like to play with."
+            "Start the movie guessing game by greeting the user, introducing yourself as the Movie Guessing Game Master, and asking what language of movies they would like to play with (explicitly suggesting options including English, Tamil, Telugu, and Hindi)."
         )
         print("\nAgent: ", end="")
         async for chunk in init_response:
